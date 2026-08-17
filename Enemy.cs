@@ -22,6 +22,12 @@ public class Enemy
     public int goldReward { get; set; }
 
     /*
+        Ataques do inimigo. Ele nao escolhe por menu: o Combate sorteia
+        um da lista a cada turno. Usa a MESMA classe Ataques do heroi.
+    */
+    public List<Ataques> ataques { get; set; } = new List<Ataques>();
+
+    /*
         Propriedade calculada: nao guarda valor, executa a conta toda vez
         que e lida. Equivale ao @property do Python.
         Por isso nao tem "set" - nao faz sentido atribuir valor ao

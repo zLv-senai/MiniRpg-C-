@@ -19,8 +19,13 @@ using System;
       Ex 6  - batalha por turnos ..... Combate.Batalhar
       Ex 7  - loja ................... Loja.Abrir
       Ex 8  - missoes ................ GerenciadorMissoes
-      Ex 9  - ranking ................ Ranking.Registrar
+      Ex 9  - ranking ................ Ranking.Menu
       Ex 10 - integracao ............. este menu
+
+    Desafios extras implementados:
+      - Salvar progresso em arquivo texto ... SaveGame.cs
+      - Diferentes tipos de inimigos ........ SortearInimigo
+      - Magia e mana ........................ Player.recurso + CatalogoAtaques
 */
 class Program
 {
@@ -39,22 +44,142 @@ class Program
         Console.WriteLine("========================================");
         Console.WriteLine("              MINI RPG");
         Console.WriteLine("========================================");
+
+        /*
+            O "?" avisa que a variavel pode ser nula - acontece quando o
+            jogador escolhe sair no menu inicial.
+        */
+        DadosDoJogo? dados = MenuInicial();
+
+        if (dados == null)
+        {
+            Console.WriteLine("Ate a proxima!");
+            return;   // encerra o Main, e com ele o programa
+        }
+
+        // Restaura o estado da partida (novo jogo ou save carregado).
+        Player heroi = dados.heroi;
+        List<Missao> missoes = dados.missoes;
+        inimigosDerrotados = dados.inimigosDerrotados;
+        itensComprados = dados.itensComprados;
+
         Console.WriteLine();
-
-        // Cadastro do personagem
-        Player heroi = CriarPersonagem();
-
-        // Cadastro das 3 missoes (Exercicio 8)
-        List<Missao> missoes = GerenciadorMissoes.CriarMissoes();
-
-        Console.WriteLine();
-        Console.WriteLine("Personagem criado:");
         heroi.MostrarStatus();
 
         MenuPrincipal(heroi, missoes);
 
         Console.WriteLine();
         Console.WriteLine("Obrigado por jogar!");
+    }
+
+    /*
+        Menu de abertura: comecar do zero ou continuar um save.
+        Devolve null se o jogador escolher sair.
+    */
+    static DadosDoJogo? MenuInicial()
+    {
+        while (true)
+        {
+            Console.WriteLine();
+            Console.WriteLine("======= INICIO =======");
+            Console.WriteLine("1 - Novo jogo");
+            Console.WriteLine("2 - Carregar jogo salvo");
+            Console.WriteLine("0 - Sair");
+            Console.Write("Opcao: ");
+
+            string opcao = Console.ReadLine() ?? "";
+
+            if (opcao == "1")
+            {
+                Player novo = CriarPersonagem();
+
+                // Partida nova: missoes zeradas e contadores em zero.
+                return new DadosDoJogo(novo, GerenciadorMissoes.CriarMissoes(), 0, 0);
+            }
+            else if (opcao == "2")
+            {
+                DadosDoJogo? carregado = MenuCarregar();
+
+                if (carregado != null)
+                {
+                    return carregado;
+                }
+
+                // Deu errado ou nao havia save: volta ao menu inicial.
+                continue;
+            }
+            else if (opcao == "0")
+            {
+                return null;
+            }
+            else
+            {
+                Console.WriteLine("Opcao invalida.");
+            }
+        }
+    }
+
+    /*
+        Mostra os saves existentes e carrega o escolhido.
+        Devolve null se nao houver save ou se o jogador desistir.
+    */
+    static DadosDoJogo? MenuCarregar()
+    {
+        List<string> saves = SaveGame.ListarSaves();
+
+        if (saves.Count == 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Nenhum jogo salvo encontrado.");
+            Console.WriteLine("Comece um jogo novo - ele sera salvo ao fim da sessao.");
+            return null;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("=== JOGOS SALVOS ===");
+
+        for (int i = 0; i < saves.Count; i++)
+        {
+            Console.WriteLine($"{i + 1} - {saves[i]}");
+        }
+        Console.WriteLine("0 - Voltar");
+        Console.Write("Opcao: ");
+
+        string entrada = Console.ReadLine() ?? "";
+
+        int opcao;
+        if (int.TryParse(entrada, out opcao) == false)
+        {
+            Console.WriteLine("Digite um numero valido.");
+            return null;
+        }
+
+        if (opcao == 0)
+        {
+            return null;
+        }
+
+        // O menu comeca em 1, a lista comeca em 0.
+        int indice = opcao - 1;
+
+        if (indice < 0 || indice >= saves.Count)
+        {
+            Console.WriteLine("Essa opcao nao existe.");
+            return null;
+        }
+
+        DadosDoJogo? dados = SaveGame.Carregar(saves[indice]);
+
+        if (dados == null)
+        {
+            Console.WriteLine("Nao foi possivel ler esse save (arquivo corrompido?).");
+            return null;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"Jogo de {dados.heroi.name} carregado!");
+
+        return dados;
     }
 
     /*
@@ -72,11 +197,11 @@ class Program
             Console.WriteLine("1 - Ver status do personagem");
             Console.WriteLine("2 - Explorar (procurar inimigos)");
             Console.WriteLine("3 - Vasculhar as ruinas (procurar moedas)");
-            Console.WriteLine("4 - Ver inventario");
+            Console.WriteLine("4 - Inventario e equipamento");
             Console.WriteLine("5 - Ir a loja");
             Console.WriteLine("6 - Ver missoes");
-            Console.WriteLine("7 - Ranking de pontuacoes");
-            Console.WriteLine("0 - Sair do jogo");
+            Console.WriteLine("7 - Ranking local de pontuacoes");
+            Console.WriteLine("0 - Salvar e sair");
             Console.Write("Opcao: ");
 
             string opcao = Console.ReadLine() ?? "";
@@ -91,9 +216,10 @@ class Program
                 case "2":
                     Explorar(heroi);
 
-                    // Se o heroi morreu, o jogo acaba.
+                    // Se o heroi morreu, a sessao acaba.
                     if (heroi.isAlive == false)
                     {
+                        EncerrarSessao(heroi, missoes, "Seu personagem foi derrotado");
                         jogando = false;
                     }
                     break;
@@ -103,8 +229,7 @@ class Program
                     break;
 
                 case "4":
-                    Console.WriteLine();
-                    heroi.MostrarInventario();
+                    MenuInventario(heroi);
                     break;
 
                 case "5":
@@ -117,10 +242,11 @@ class Program
                     break;
 
                 case "7":
-                    Ranking.Registrar(heroi);
+                    Ranking.Menu(heroi);
                     break;
 
                 case "0":
+                    EncerrarSessao(heroi, missoes, "Voce salvou e saiu");
                     jogando = false;   // condicao de parada do laco
                     break;
 
@@ -141,6 +267,130 @@ class Program
     }
 
     /*
+        Inventario do jogador: ver, equipar e usar itens.
+        DESAFIO EXTRA - sistema de equipamentos.
+    */
+    static void MenuInventario(Player heroi)
+    {
+        bool aberto = true;
+
+        while (aberto)
+        {
+            Console.WriteLine();
+            heroi.MostrarInventario();
+            Console.WriteLine();
+            heroi.MostrarEquipamento();
+
+            Console.WriteLine();
+            Console.WriteLine("1 - Equipar / usar um item");
+            Console.WriteLine("0 - Voltar");
+            Console.Write("Opcao: ");
+
+            string opcao = Console.ReadLine() ?? "";
+
+            if (opcao == "0")
+            {
+                aberto = false;
+                continue;
+            }
+
+            if (opcao != "1")
+            {
+                Console.WriteLine("Opcao invalida.");
+                continue;
+            }
+
+            Console.Write("Numero da vaga do inventario (1 a 5): ");
+            string entrada = Console.ReadLine() ?? "";
+
+            int vaga;
+            if (int.TryParse(entrada, out vaga) == false)
+            {
+                Console.WriteLine("Digite um numero valido.");
+                continue;
+            }
+
+            // O menu mostra de 1 a 5, o vetor vai de 0 a 4.
+            int indice = vaga - 1;
+
+            if (indice < 0 || indice >= heroi.inventario.Length)
+            {
+                Console.WriteLine("Essa vaga nao existe.");
+                continue;
+            }
+
+            if (heroi.inventario[indice] == "")
+            {
+                Console.WriteLine("Essa vaga esta vazia.");
+                continue;
+            }
+
+            /*
+                O inventario guarda so o NOME do item. Aqui buscamos o objeto
+                completo no catalogo da loja para saber bonus, slot e classe.
+            */
+            Item? item = Loja.BuscarPorNome(heroi.inventario[indice]);
+
+            if (item == null)
+            {
+                Console.WriteLine("Item desconhecido.");
+                continue;
+            }
+
+            if (item.slot == "Consumivel")
+            {
+                heroi.UsarConsumivel(item, indice);
+            }
+            else
+            {
+                heroi.Equipar(item);
+            }
+        }
+    }
+
+    /*
+        Fecha a sessao de jogo: salva o progresso, calcula a pontuacao final,
+        grava no ranking local e mostra o resultado.
+
+        Este metodo existe para o encerramento acontecer SEMPRE do mesmo jeito,
+        seja por morte ou por saida pelo menu. Se o codigo estivesse copiado
+        nos dois lugares, um dia a gente mudaria um e esqueceria o outro.
+    */
+    static void EncerrarSessao(Player heroi, List<Missao> missoes, string motivo)
+    {
+        int pontuacaoFinal = Ranking.CalcularPontuacao(heroi);
+
+        Console.WriteLine();
+        Console.WriteLine("========================================");
+        Console.WriteLine($"  FIM DE SESSAO - {motivo}");
+        Console.WriteLine("========================================");
+        heroi.MostrarStatus();
+        Console.WriteLine();
+        Console.WriteLine($"Pontuacao final: {pontuacaoFinal} pontos");
+        Console.WriteLine($"  (nivel {heroi.level} x 100) + {heroi.gold} moedas + {heroi.exp} EXP");
+
+        /*
+            Se o personagem morreu, o save guarda ele com 1 de vida em vez
+            de 0 - assim da para continuar a partida em vez de carregar um
+            heroi morto que nao consegue fazer nada.
+        */
+        if (heroi.isAlive == false)
+        {
+            heroi.health = 1;
+            Console.WriteLine("Seu personagem foi resgatado com 1 de vida no save.");
+        }
+
+        SaveGame.Salvar(heroi, missoes, inimigosDerrotados, itensComprados);
+        Console.WriteLine($"Progresso salvo em saves/{SaveGame.LimparNome(heroi.name)}.txt");
+
+        // Registro automatico no ranking local.
+        Ranking.Salvar(heroi.name, pontuacaoFinal);
+        Console.WriteLine("Pontuacao registrada no ranking local.");
+
+        Ranking.Mostrar(pontuacaoFinal);
+    }
+
+    /*
         O heroi explora a regiao, encontra um inimigo, luta,
         e recebe as recompensas se vencer.
     */
@@ -157,7 +407,6 @@ class Program
         {
             inimigosDerrotados = inimigosDerrotados + 1;
 
-            // ACUMULADOR de moedas
             // Drop do inimigo: fonte principal de moedas do jogo.
             heroi.gold = heroi.gold + inimigo.goldReward;
             Console.WriteLine($"{inimigo.name} dropou {inimigo.goldReward} moedas! Total: {heroi.gold}");
@@ -175,17 +424,27 @@ class Program
     {
         int numero = sorteio.Next(1, 4);   // sorteia 1, 2 ou 3
 
+        Enemy inimigo;
+
         switch (numero)
         {
             case 1:
-                return new Enemy("Goblin", 60, 10, 5, 35, 25);
+                inimigo = new Enemy("Goblin", 60, 10, 5, 35, 25);
+                break;
 
             case 2:
-                return new Enemy("Lobo Selvagem", 70, 14, 10, 45, 20);
+                inimigo = new Enemy("Lobo Selvagem", 70, 14, 10, 45, 20);
+                break;
 
             default:
-                return new Enemy("Esqueleto", 80, 15, 20, 55, 30);
+                inimigo = new Enemy("Esqueleto", 80, 15, 20, 55, 30);
+                break;
         }
+
+        // Cada inimigo recebe a propria lista de ataques.
+        inimigo.ataques = CatalogoAtaques.DoInimigo(inimigo.name);
+
+        return inimigo;
     }
 
     /*
@@ -223,17 +482,25 @@ class Program
         switch (opcao)
         {
             case "1":
-                return new Mago(nome, 80, 25, 5, 1, 50);
+                Mago mago = new Mago(nome, 80, 25, 5, 1, 50);
+                mago.ataques = CatalogoAtaques.DoMago();
+                return mago;
 
             case "2":
-                return new Guerreiro(nome, 120, 15, 25, 1, 40);
+                Guerreiro guerreiro = new Guerreiro(nome, 120, 15, 25, 1, 40);
+                guerreiro.ataques = CatalogoAtaques.DoGuerreiro();
+                return guerreiro;
 
             case "3":
-                return new Arqueiro(nome, 100, 20, 12, 1, 60);
+                Arqueiro arqueiro = new Arqueiro(nome, 100, 20, 12, 1, 60);
+                arqueiro.ataques = CatalogoAtaques.DoArqueiro();
+                return arqueiro;
 
             default:
                 Console.WriteLine("Opcao invalida! Voce sera um Guerreiro.");
-                return new Guerreiro(nome, 120, 15, 25, 1, 40);
+                Guerreiro padrao = new Guerreiro(nome, 120, 15, 25, 1, 40);
+                padrao.ataques = CatalogoAtaques.DoGuerreiro();
+                return padrao;
         }
     }
 }

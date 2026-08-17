@@ -1,8 +1,15 @@
-# Pastas geradas pelo compilador .NET — nunca vão para o Git.
-# São recriadas por "dotnet build" em qualquer máquina.
+# Pastas geradas pelo compilador .NET - nunca vao para o Git.
+# Sao recriadas por "dotnet build" em qualquer maquina.
 bin/
 obj/
 
-# Configurações locais de editor
+# Configuracoes locais de editor
 .vs/
 *.user
+
+# Ranking local: e o placar da maquina de quem joga, nao codigo do projeto.
+# Cada pessoa que clonar o repositorio comeca com o proprio ranking vazio.
+ranking.txt
+
+# Jogos salvos: sao o progresso pessoal de quem joga, nao codigo do projeto.
+saves/

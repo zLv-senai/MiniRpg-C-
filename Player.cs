@@ -44,6 +44,114 @@ os valores base, e sim herdando da classe Player.
         public int gold {get; set;} = 0;   // Exercicio 2 e 7 - moedas
 
         /*
+            DESAFIO EXTRA - Sistema de equipamentos.
+
+            Dois slots: uma arma e uma armadura. O "?" avisa que podem estar
+            vazios (o personagem comeca sem nada equipado), e o compilador
+            obriga a checar null antes de usar.
+        */
+        public Item? arma {get; set;} = null;
+        public Item? armadura {get; set;} = null;
+
+        /*
+            Ataque e defesa REAIS, ja somando o equipamento.
+
+            Sao propriedades calculadas de proposito. A alternativa seria
+            somar o bonus direto em "damage" ao equipar - mas ai, ao trocar
+            de arma, seria preciso lembrar de subtrair o bonus da antiga.
+            Esquecer uma vez e o personagem fica forte para sempre.
+            Assim o valor e recalculado do zero toda vez que e lido.
+        */
+        public int ataqueTotal
+        {
+            get
+            {
+                int total = this.damage;
+
+                if (this.arma != null)
+                {
+                    total = total + this.arma.bonusAtaque;
+                }
+
+                if (this.armadura != null)
+                {
+                    total = total + this.armadura.bonusAtaque;
+                }
+
+                return total;
+            }
+        }
+
+        public int defesaTotal
+        {
+            get
+            {
+                int total = this.defense;
+
+                if (this.arma != null)
+                {
+                    total = total + this.arma.bonusDefesa;
+                }
+
+                if (this.armadura != null)
+                {
+                    total = total + this.armadura.bonusDefesa;
+                }
+
+                return total;
+            }
+        }
+
+        /*
+            Bonus de critico vindo do equipamento, em pontos percentuais.
+            O Combate subtrai este valor do limite do golpe.
+        */
+        public int criticoTotal
+        {
+            get
+            {
+                int total = 0;
+
+                if (this.arma != null)
+                {
+                    total = total + this.arma.bonusCritico;
+                }
+
+                if (this.armadura != null)
+                {
+                    total = total + this.armadura.bonusCritico;
+                }
+
+                return total;
+            }
+        }
+
+        /*
+            Mana/stamina maxima REAL, somando o equipamento.
+            recursoMax continua sendo o valor base do personagem; este e o
+            teto efetivo usado na tela e no limite de recuperacao.
+        */
+        public int recursoMaxTotal
+        {
+            get
+            {
+                int total = this.recursoMax;
+
+                if (this.arma != null)
+                {
+                    total = total + this.arma.bonusRecurso;
+                }
+
+                if (this.armadura != null)
+                {
+                    total = total + this.armadura.bonusRecurso;
+                }
+
+                return total;
+            }
+        }
+
+        /*
             EXERCICIO 4 - quanta EXP falta para o proximo nivel.
 
             Formula: 100 x nivel atual.
@@ -88,7 +196,7 @@ os valores base, e sim herdando da classe Player.
                 Trava de seguranca: acima de 80% o personagem ficaria
                 praticamente imortal, entao a defesa util para no 80.
             */
-            int defesaEfetiva = this.defense;
+            int defesaEfetiva = this.defesaTotal;   // ja inclui o bonus do equipamento
 
             if (defesaEfetiva > 80)
             {
@@ -174,11 +282,25 @@ os valores base, e sim herdando da classe Player.
             this.defense = this.defense + 3;   // +3 pontos percentuais de reducao
 
             this.recursoMax = this.recursoMax + 10;
-            this.recurso = this.recursoMax;
+            this.recurso = this.recursoMaxTotal;
 
             Console.WriteLine();
             Console.WriteLine($"*** {this.name} SUBIU PARA O NIVEL {this.level}! ***");
             Console.WriteLine($"    Vida maxima +20, Ataque +5, Defesa +3%, {this.recursoNome} +10");
+
+            /*
+                Avisa se algum ataque foi liberado exatamente neste nivel.
+                A lista de ataques ja tem os 4 golpes desde o inicio - o que
+                muda e o filtro por nivelMinimo na hora de escolher.
+            */
+            for (int i = 0; i < this.ataques.Count; i++)
+            {
+                if (this.ataques[i].nivelMinimo == this.level)
+                {
+                    Console.WriteLine($"    NOVO ATAQUE DESBLOQUEADO: {this.ataques[i].name}!");
+                }
+            }
+
             Console.WriteLine();
         }
 
@@ -213,15 +335,107 @@ os valores base, e sim herdando da classe Player.
                 }
                 else
                 {
-                    Console.WriteLine($"  {i + 1}. {this.inventario[i]}");
+                    // Marca o que esta equipado no momento.
+                    string marca = "";
+
+                    if (this.arma != null && this.arma.nome == this.inventario[i])
+                    {
+                        marca = "  [EQUIPADA]";
+                    }
+                    else if (this.armadura != null && this.armadura.nome == this.inventario[i])
+                    {
+                        marca = "  [VESTIDA]";
+                    }
+
+                    Console.WriteLine($"  {i + 1}. {this.inventario[i]}{marca}");
                 }
             }
+        }
+
+        /*
+            DESAFIO EXTRA - equipa um item, respeitando a regra de classe.
+            Retorna false se a classe do personagem nao pode usar o item.
+        */
+        public bool Equipar(Item item)
+        {
+            if (item.PodeSerUsadoPor(this) == false)
+            {
+                Console.WriteLine($"{this.name} nao pode empunhar {item.nome} (so {item.classePermitida}).");
+                return false;
+            }
+
+            if (item.slot == "Arma")
+            {
+                this.arma = item;
+                Console.WriteLine($"{this.name} equipou {item.nome} ({item.Descricao()}).");
+                return true;
+            }
+
+            if (item.slot == "Armadura")
+            {
+                this.armadura = item;
+                Console.WriteLine($"{this.name} vestiu {item.nome} ({item.Descricao()}).");
+                return true;
+            }
+
+            Console.WriteLine($"{item.nome} nao e um equipamento.");
+            return false;
+        }
+
+        // Usa um consumivel: cura vida e some do inventario.
+        public bool UsarConsumivel(Item item, int posicaoNoInventario)
+        {
+            if (item.slot != "Consumivel")
+            {
+                Console.WriteLine($"{item.nome} nao e um item de uso.");
+                return false;
+            }
+
+            if (this.health >= this.maxHealth)
+            {
+                Console.WriteLine("Sua vida ja esta cheia.");
+                return false;
+            }
+
+            this.health = this.health + item.curaVida;
+
+            // Nao passa da vida maxima.
+            if (this.health > this.maxHealth)
+            {
+                this.health = this.maxHealth;
+            }
+
+            // Libera a vaga do inventario: o consumivel acabou.
+            this.inventario[posicaoNoInventario] = "";
+
+            Console.WriteLine($"{this.name} usou {item.nome}. Vida: {this.health}/{this.maxHealth}");
+            return true;
+        }
+
+        // Mostra o que esta equipado nos dois slots.
+        public void MostrarEquipamento()
+        {
+            string textoArma = "nenhuma";
+            if (this.arma != null)
+            {
+                textoArma = $"{this.arma.nome} ({this.arma.Descricao()})";
+            }
+
+            string textoArmadura = "nenhuma";
+            if (this.armadura != null)
+            {
+                textoArmadura = $"{this.armadura.nome} ({this.armadura.Descricao()})";
+            }
+
+            Console.WriteLine($"Arma: {textoArma}");
+            Console.WriteLine($"Armadura: {textoArmadura}");
+            Console.WriteLine($"Ataque total: {this.ataqueTotal}  |  Defesa total: {this.defesaTotal}%  |  Critico extra: +{this.criticoTotal}%  |  {this.recursoNome} maxima: {this.recursoMaxTotal}");
         }
 
         // Mostra o estado atual do personagem na tela.
         public void MostrarStatus()
         {
-            Console.WriteLine($"{this.name} | Nivel {this.level} | Vida: {this.health}/{this.maxHealth} | {this.recursoNome}: {this.recurso}/{this.recursoMax} | Ataque: {this.damage} | Defesa: {this.defense}% | EXP: {this.exp}/{this.expParaSubir} | Moedas: {this.gold}");
+            Console.WriteLine($"{this.name} | Nivel {this.level} | Vida: {this.health}/{this.maxHealth} | {this.recursoNome}: {this.recurso}/{this.recursoMaxTotal} | Ataque: {this.ataqueTotal} | Defesa: {this.defesaTotal}% | EXP: {this.exp}/{this.expParaSubir} | Moedas: {this.gold}");
         }
     }
 /* Primeira subclasse herdando os valores base com o ":" de player */
