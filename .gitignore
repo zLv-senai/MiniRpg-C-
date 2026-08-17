@@ -1,0 +1,8 @@
+# Pastas geradas pelo compilador .NET — nunca vão para o Git.
+# São recriadas por "dotnet build" em qualquer máquina.
+bin/
+obj/
+
+# Configurações locais de editor
+.vs/
+*.user
